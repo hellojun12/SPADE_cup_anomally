@@ -8,8 +8,9 @@ import timm
 
 import numpy as np
 from sklearn.metrics import roc_auc_score
+from sklearn.metrics import precision_recall_curve
 
-from utils import GaussianBlur, get_coreset_idx_randomp, get_tqdm_params
+from utils import GaussianBlur, get_coreset_idx_randomp, get_tqdm_params, visualize_loc_result
 
 
 class KNNExtractor(torch.nn.Module):
@@ -60,17 +61,42 @@ class KNNExtractor(torch.nn.Module):
 		image_labels = []
 		pixel_preds = []
 		pixel_labels = []
+		test_imgs = []
+		gt_mask_list = []
+		score_map_list = []
 
 		for sample, mask, label in tqdm(test_dl, **get_tqdm_params()):
+			#save for visualization
+			test_imgs.extend(sample.cpu().detach().numpy())
+			gt_mask_list.extend(mask.cpu().detach().numpy())
+
 			z_score, fmap = self.predict(sample)
 			
+			score_map_list.append(fmap.squeeze().cpu().detach().numpy())
 			image_preds.append(z_score.numpy())
 			image_labels.append(label)
 			
 			pixel_preds.extend(fmap.flatten().numpy())
-			pixel_labels.extend(mask.flatten().numpy())
-			
+			pixel_labels.extend(mask.flatten().numpy().astype(np.uint8))
+		
+		print(f"gt: {gt_mask_list[0].shape}")
+		print(f"pred: {score_map_list[0].shape}")
+		
+		# get optimal threshold
+		precision, recall, thresholds = precision_recall_curve(pixel_labels, pixel_preds)
+		a = 2 * precision * recall
+		b = precision + recall
+		f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+		threshold = thresholds[np.argmax(f1)]
+		
+		print(f"Result Threshold : {threshold}")
+		visualize_loc_result(test_imgs, gt_mask_list, score_map_list, 150,
+                         './results/images', 'cup', vis_num=10)
 		image_preds = np.stack(image_preds)
+		image_labels = torch.stack(image_labels)
+
+		#print(f"pixel_preds: {pixel_preds}")
+		#print(f"pixel_labels: {pixel_labels}")
 
 		image_rocauc = roc_auc_score(image_labels, image_preds)
 		pixel_rocauc = roc_auc_score(pixel_labels, pixel_preds)
@@ -96,7 +122,7 @@ class SPADE(KNNExtractor):
 			pool_last=True,
 		)
 		self.k = k
-		self.image_size = 224
+		self.image_size = 248
 		self.z_lib = []
 		self.feature_maps = []
 		self.threshold_z = None
@@ -105,11 +131,12 @@ class SPADE(KNNExtractor):
 
 	def fit(self, train_dl):
 		for sample, _ in tqdm(train_dl, **get_tqdm_params()):
+		
 			feature_maps, z = self(sample)
 
 			# z vector
 			self.z_lib.append(z)
-
+			
 			# feature maps
 			if len(self.feature_maps) == 0:
 				for fmap in feature_maps:

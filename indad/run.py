@@ -68,6 +68,7 @@ def run_model(method: str, classes: List):
     }
     return total_results
 
+
 @click.command()
 @click.argument("method")
 @click.option("--dataset", default="all", help="Dataset, defaults to all datasets.")

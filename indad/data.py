@@ -34,11 +34,13 @@ def mvtec_classes():
     ]
 
 class MVTecDataset:
-    def __init__(self, cls : str, size : int = 224):
+    def __init__(self, cls : str, size : int = 248):
         self.cls = cls
         self.size = size
         if cls in mvtec_classes():
             self._download()
+        else:
+            print(f"cls: {cls} not in mvtec_classes")
         self.train_ds = MVTecTrainDataset(cls, size)
         self.test_ds = MVTecTestDataset(cls, size)
 

@@ -9,6 +9,9 @@ from torchvision import transforms
 
 from PIL import ImageFilter
 from sklearn import random_projection
+from matplotlib import pyplot as plt
+import numpy as np
+import os 
 
 TQDM_PARAMS = {
 	"file" : sys.stdout,
@@ -127,3 +130,45 @@ def serialize_results(results : dict) -> str:
         s = s + f"| {v[0]*100:.1f}  | {v[1]*100:.1f}  |"
         ans.append(s)
     return "\n".join(ans)
+
+def visualize_loc_result(test_imgs, gt_mask_list, score_map_list, threshold,
+                         save_path, class_name, vis_num=10):
+
+    for t_idx in range(vis_num):
+        test_img = test_imgs[t_idx]
+        test_img = denormalization(test_img)
+        test_gt = gt_mask_list[t_idx].transpose(1, 2, 0).squeeze()
+        test_pred = score_map_list[t_idx]
+        test_pred[test_pred <= threshold] = 0
+        test_pred[test_pred > threshold] = 1
+        test_pred_img = test_img.copy()
+        test_pred_img[test_pred == 0] = 0
+
+        fig_img, ax_img = plt.subplots(1, 4, figsize=(12, 4))
+        fig_img.subplots_adjust(left=0, right=1, bottom=0, top=1)
+
+        for ax_i in ax_img:
+            ax_i.axes.xaxis.set_visible(False)
+            ax_i.axes.yaxis.set_visible(False)
+
+        ax_img[0].imshow(test_img)
+        ax_img[0].title.set_text('Image')
+        ax_img[1].imshow(test_gt, cmap='gray')
+        ax_img[1].title.set_text('GroundTruth')
+        ax_img[2].imshow(test_pred, cmap='gray')
+        ax_img[2].title.set_text('Predicted mask')
+        ax_img[3].imshow(test_pred_img)
+        ax_img[3].title.set_text('Predicted anomalous image')
+
+        os.makedirs(os.path.join(save_path, 'images'), exist_ok=True)
+        fig_img.savefig(os.path.join(save_path, 'images', '%s_%03d.png' % (class_name, t_idx)), dpi=100)
+        fig_img.clf()
+        plt.close(fig_img)
+        
+
+def denormalization(x):
+
+    mean = np.array([.485, .456, .406])
+    std = np.array([.229, .224, .225])
+    x = (((x.transpose(1, 2, 0) * std) + mean) * 255.).astype(np.uint8)
+    return x
