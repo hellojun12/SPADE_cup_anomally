@@ -1,0 +1,14 @@
+average image rocauc: 1.0
+average pixel rocauc: 0.983435317786657
+model parameters:
+  backbone_name: wide_resnet50_2
+  k: 50
+  out_indices:
+  - 1
+  - 2
+  - 3
+  - -1
+per_class_results:
+  cup_spade:
+  - 1.0
+  - 0.983435317786657
